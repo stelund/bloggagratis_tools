@@ -1,5 +1,7 @@
-#!/usr/bin
-
+#!/usr/bin/env python
+"""
+The script to read a site
+"""
 import urllib2
 import sys
 import os
@@ -8,9 +10,11 @@ import pprint
 import datetime
 import wp_export
 import pytz
+from htmlentitydefs import name2codepoint
 
 SWEDEN_TIMEZONE = pytz.timezone('Europe/Stockholm')
 BLOG = u'tantalexandra'
+IMAGES_URL = 'http://stefanlundstrom.se/static/' + BLOG + '_images/'
 MONTHS = {u'jan':1,
           u'feb':2,
           u'mars':3,
@@ -96,7 +100,7 @@ def parse_blog_page(url):
                 match = re.compile(u'<a href="(?P<url>.+?)" title=".*?" target="_blank">(?P<author>.+?)</a> (?P<date>.+)').search(commentor)
                 if match:
                     comment = {
-                        u'text' : unicode(comment_text),
+                        u'text' : unicode(unescape_html(comment_text)),
                         u'url' : match.group('url'),
                         u'author' : match.group('author'),
                         u'date' : read_date(match.group('date')),
@@ -105,28 +109,33 @@ def parse_blog_page(url):
                     print 'Bad commentor %s in page %s' % (commentor, url)
                     comment = { 'text' : commentor }
             else:
-                match = re.compile(u'(?P<author>.+?) (?P<date>.+)').search(commentor)
-                if match:
-                    comment = {
-                        u'text' : comment_text,
-                        u'author' : match.group('author'),
-                        u'date' : read_date(match.group('date')),
-                        u'url' : '',
-                        }
+                if 'idag' in commentor or 'ig&aring;r' in commentor or 'f&ouml;rrg&aring;r' in commentor:
+                    author, d1, d2, d3 = commentor.rsplit(' ',3)
+                    date = '%s %s %s' % (d1, d2, d3)
                 else:
-                    print u'Bad commentor %s in page %s' % (commentor, url)
-                    comment = { u'text' : comment_text }                    
+                    author, d1, d2, d3, d4, d5 = commentor.rsplit(' ',5)
+                    date = '%s %s %s %s %s' % (d1, d2, d3, d4, d5)
+                comment = {
+                    u'text' : comment_text,
+                    u'author' : author,
+                    u'date' : read_date(date),
+                    u'url' : '',
+                    }
             new_comments.append(comment)
         info[u'comments'] = new_comments
     else:
         info[u'comments'] = []
 
     if u'author,date' in info:
-        info[u'author'], info[u'date'] = info['author,date']
+        info[u'date'] = read_date(info[u'author,date'][1])
+        info[u'author'] = unescape_html(info[u'author,date'][0])
         del info[u'author,date']
-        info[u'date'] = read_date(info[u'date'])
 
-    info[u'categories'] = []
+    if u'text' in info:
+        info[u'text'] = unescape_html(info[u'text'])
+    if u'title' in info:
+        info[u'title'] = unescape_html(info[u'title'])
+
     return info
 
 def read_index():
@@ -148,45 +157,67 @@ def read_index():
                 
     return indexes
 
+def unescape_html(html):
+    "unescape HTML code refs; c.f. http://wiki.python.org/moin/EscapingHtml"
+    return re.sub(u'&(%s);' % u'|'.join(name2codepoint),
+                  lambda m: unichr(name2codepoint[m.group(1)]), html)
+
 def read_categories():
     page = get_page(u'')
 
     categories_section = page.split(u'<h2>Kategorier</h2>',1)[1].split(u'<div class="menyrubrik">',1)[0]
+    
+    permalinks = re.compile(u'<h1><a href="http://.+?bloggagratis.se/(?P<url>.+?)" title="')
 
+    pages = {}
     categories = []
-    for c in re.compile(u'">(?P<category>.+?)</a>').findall(categories_section):
-        categories.append({
-                u'nicename':c.replace(' ', '_'),
-                u'fullname':c,
-                u'parent':'',
-                })
+    for (cat_view, cat_html) in re.compile(u'bloggagratis.se/(?P<url>.+?)">(?P<category>.+?)</a>').findall(categories_section):
+        cat = unescape_html(cat_html)
+        for index in range(200):
+            c_page = get_page(cat_view + u'sida-%d/' % (index+1))
+            if not permalinks.search(c_page):
+                break
+            for permalink in permalinks.findall(c_page):
+                if permalink in pages:
+                    pages[permalink].append(cat)
+                else:
+                    pages[permalink] = [cat]
+                
+        categories.append(cat)
+   
+    return categories, pages
 
-    return categories
+def download_image(filename):
+                   
+    safe_filename = filename.replace(u'/', u'_')
+    if safe_filename.endswith('_'):
+        safe_filename = safe_filename[:-1]
+        if '.' not in safe_filename[-5:]:
+            safe_filename = safe_filename + '.' + re.compile(r'\.(?P<extension>.+)_').search(safe_filename).group('extension')
+    if not os.path.exists(os.path.join(BLOG + u'_images', safe_filename)):
+        try:
+            url = urllib2.urlopen(u'http://data.bloggplatsen.se/bild/%s' % filename)
+            data = url.read()
+            url.close()
+            print 'Downloaded %s' % filename
+        except urllib2.URLError:
+            print 'Failed read read %s' % filename
+            return None
+        fp = file(os.path.join(BLOG + u'_images', safe_filename), u'wb')
+        fp.write(data)
+        fp.close()
+        
+    return safe_filename
 
 def read_images(article):
     images = []
-    for filename in re.compile(u'<img.*src="http://data.bloggplatsen.se/bild/(?P<filnamn>.+?)"').findall(article['text']):
-        safe_filename = filename.replace(u'/', u'_')
-        if safe_filename.endswith('_'):
-            safe_filename = safe_filename[:-1]
-            if '.' not in safe_filename[-5:]:
-                safe_filename = safe_filename + '.' + re.compile(r'\.(?P<extension>.+)_').search(safe_filename).group('extension')
-        if not os.path.exists(os.path.join(BLOG + u'_images', safe_filename)):
-            try:
-                url = urllib2.urlopen(u'http://data.bloggplatsen.se/bild/%s' % filename)
-                data = url.read()
-                url.close()
-                print 'Downloaded %s' % filename
-            except urllib2.URLError:
-                print 'Failed read read %s' % filename
-                continue
-            fp = file(os.path.join(BLOG + u'_images', safe_filename), u'wb')
-            fp.write(data)
-            fp.close()
-        
+    for filename in re.compile(u'http://data.bloggplatsen.se/bild/(?P<filnamn>.+?)"').findall(article['text']):
+        path = download_image(filename)
+
         images.append( {
                 u'filename' : filename,
-                u'path' : safe_filename,
+                u'url' : IMAGES_URL + path,
+                u'path' : path,
                 u'date' : article[u'date'],
                 u'categories' : [],
                 u'height' : 0,
@@ -194,9 +225,11 @@ def read_images(article):
                 u'name' : '%s - bild %d' % (article[u'title'], len(images) + 1),
                 } )
 
-    return images
+    for image in images:
+        article['text'] = article['text'].replace('http://data.bloggplatsen.se/bild/%s' % image[u'filename'], 
+                                                  image[u'url'])
 
-# http://data.bloggplatsen.se/bild/filnamn-80acf403eaf3778d8d31502e9894a29249a852e9a667e.jpg/version-06ff162322b57e8cff2aefeeaf7caf75/
+    return images
 
 def main():
     if not os.path.exists(BLOG):
@@ -209,8 +242,10 @@ def main():
     articles = []
     images = []
     post_id = 0
-    for permalink in indexes[0:10]:
+    categories, category_lookup = read_categories()
+    for permalink in indexes[0:20]:
         info = parse_blog_page(permalink)
+        info[u'categories'] = category_lookup.get(permalink, [])
         print u'Processing %s' % permalink
         info['post_id'] = post_id
         post_id = post_id + 1
@@ -222,12 +257,8 @@ def main():
             post_id = post_id + 1
         images.extend(post_images)
 
-    #pprint.pprint(articles[0:2])
-    
-    categories = read_categories()
-    print categories
     bloginfo = {u'site_url':u'http://stefanlundstrom.se:5122', 'static_url' : 'http://data.bloggplatsen.se/bild/'}
-    wp_export.export(articles[0:2], images, categories, bloginfo, u'out.xml')
+    wp_export.export(articles, images, categories, bloginfo, u'out.xml')
 
 
 if __name__ == '__main__':

@@ -50,11 +50,11 @@ def format_item_categories(categories):
 def format_images(images, static_url):
     format = u"""    <item>
       <title>%(name)s</title>
-      <link>%(static_url)s%(filename)s</link>
+      <link>%(url)s</link>
       <pubDate>%(pubdate)s</pubDate>
       <dc:creator><![CDATA[admin]]></dc:creator>
 %(categories)s
-      <guid isPermaLink="false">%(static_url)s%(filename)s</guid>
+      <guid isPermaLink="false">%(url)s</guid>
       <description>%(description)s</description>
       <content:encoded><![CDATA[]]></content:encoded>
       <excerpt:encoded><![CDATA[]]></excerpt:encoded>
@@ -63,13 +63,13 @@ def format_images(images, static_url):
       <wp:post_date_gmt>%(post_gmt_date)s</wp:post_date_gmt>
       <wp:comment_status>open</wp:comment_status>
       <wp:ping_status>open</wp:ping_status>
-      <wp:post_name>%(name)s</wp:post_name>
+      <wp:post_name>%(post_name)s</wp:post_name>
       <wp:status>inherit</wp:status>
       <wp:post_parent>%(post_parent)d</wp:post_parent>
       <wp:menu_order>0</wp:menu_order>
       <wp:post_type>attachment</wp:post_type>
       <wp:post_password></wp:post_password>
-      <wp:attachment_url>%(static_url)s%(filename)s</wp:attachment_url>
+      <wp:attachment_url>%(url)s</wp:attachment_url>
       <wp:postmeta>
         <wp:meta_key>_wp_attached_file</wp:meta_key>
         <wp:meta_value>%(filename)s</wp:meta_value>
@@ -81,10 +81,11 @@ def format_images(images, static_url):
     </item>"""
     
     for img in images:
+        img['post_name'] = nicename(img['name'])
         img['pubdate'] = format_pubdate(img['date'])
         img['post_date'] = format_isodate(img['date'])
         img['post_gmt_date'] = format_gmtdate(img['date'])
-        img['categories'] = format_categories(img['categories'])
+        img['categories'] = format_post_categories(img['categories'])
         img['static_url'] = static_url
         img['description'] = ''
     
@@ -128,9 +129,9 @@ def format_items(items, site_url):
         item['pubdate'] = format_pubdate(item['date'])
         item['post_date'] = format_isodate(item['date'])
         item['post_gmt_date'] = format_gmtdate(item['date'])
-        item['post_name'] = item['title'].lower().replace(' ', '_')
+        item['post_name'] = nicename(item['title'])
         item['comments'] = format_comments(item['comments'])
-        item['categories'] = format_categories(item['categories'])
+        item['categories'] = format_post_categories(item['categories'])
         item['site_url'] = site_url
         item['year'] = item['date'].year
         item['month'] = item['date'].month
@@ -139,9 +140,37 @@ def format_items(items, site_url):
 
     return u'\n'.join([format % item for item in items])
 
+def nicename(s):
+    translatetable = {
+        u'\xe4' : u'a',
+        u'\xe5' : u'a',
+        u'\xf6' : u'o',
+        u'\xc4' : u'A',
+        u'\xc5' : u'A',
+        u'\xd6' : u'O',
+        u' ' : u'_',
+        u'!' : u'',
+        u'?' : u'',
+        }
+    x = ''.join([translatetable.get(c, c) for c in s])
+    return x.lower()
+
+def format_post_categories(categories):
+    cat_dicts = [{
+            u'nicename':nicename(c),
+            u'fullname':c} for c in categories]
+
+    format = u'		<category><![CDATA[%(fullname)s]]></category>\n                <category domain="category" nicename="%(nicename)s"><![CDATA[%(fullname)s]]></category>'
+    return u'\n'.join([format % cat for cat in cat_dicts])
+
 def format_categories(categories):
-    format = u'    <wp:category><wp:category_nicename>%(nicename)s</wp:category_nicename><wp:category_parent>%(parent)s</wp:category_parent><wp:cat_name><![CDATA[%(fullname)s]]></wp:cat_name></wp:category>'
-    return u'\n'.join([format % cat for cat in categories])
+    
+    cat_dicts = [{
+            u'nicename':nicename(c),
+            u'fullname':c} for c in categories]
+
+    format = u'    <wp:category><wp:category_nicename>%(nicename)s</wp:category_nicename><wp:category_parent></wp:category_parent><wp:cat_name><![CDATA[%(fullname)s]]></wp:cat_name></wp:category>'
+    return u'\n'.join([format % cat for cat in cat_dicts])
         
 
 def export(articles, images, categories, bloginfo, outfile):
@@ -158,5 +187,5 @@ def export(articles, images, categories, bloginfo, outfile):
 
    if outfile:
        fp = file(outfile, 'w')
-       fp.write(out.encode('ISO-8859-1'))
+       fp.write(out.encode('utf-8'))
        fp.close()
