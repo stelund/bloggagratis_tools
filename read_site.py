@@ -27,7 +27,8 @@ MONTHS = {u'jan':1,
           u'okt':10,
           u'nov':11,
           u'november':11,
-          u'december':12 }
+          u'december':12,
+          u'dec':12 }
 
 def read_date(datestr):
     day_str, time_str = datestr.replace(u'&nbsp;',u' ').lower().split(u' kl ') 
@@ -212,11 +213,12 @@ def download_image(filename):
 def read_images(article):
     images = []
     for filename in re.compile(u'http://data.bloggplatsen.se/bild/(?P<filnamn>.+?)"').findall(article['text']):
-        path = download_image(filename)
+        path = 'missing' #download_image(filename)
 
         images.append( {
                 u'filename' : filename,
-                u'url' : IMAGES_URL + path,
+                u'url' : u'http://data.bloggplatsen.se/bild/%s?%s-bild_%d.jpg' % (filename, wp_export.nicename(article[u'title']), len(images)+1),
+                #IMAGES_URL + path,
                 u'path' : path,
                 u'date' : article[u'date'],
                 u'categories' : [],
@@ -243,7 +245,7 @@ def main():
     images = []
     post_id = 0
     categories, category_lookup = read_categories()
-    for permalink in indexes[0:20]:
+    for permalink in indexes:
         info = parse_blog_page(permalink)
         info[u'categories'] = category_lookup.get(permalink, [])
         print u'Processing %s' % permalink
