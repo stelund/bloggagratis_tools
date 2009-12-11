@@ -54,32 +54,67 @@ def format_images(images, static_url):
       <pubDate>%(pubdate)s</pubDate>
       <dc:creator><![CDATA[admin]]></dc:creator>
 %(categories)s
-      <guid isPermaLink="false">%(url)s</guid>
-      <description>%(description)s</description>
       <content:encoded><![CDATA[]]></content:encoded>
       <excerpt:encoded><![CDATA[]]></excerpt:encoded>
+    # <guid isPermaLink="false">%(url)s</guid>
       <wp:post_id>%(post_id)d</wp:post_id>
+      <wp:post_parent>%(post_parent)d</wp:post_parent>
+      <wp:attachment_url>%(url)s</wp:attachment_url>
+      <wp:post_type>attachment</wp:post_type>
       <wp:post_date>%(post_date)s</wp:post_date>
       <wp:post_date_gmt>%(post_gmt_date)s</wp:post_date_gmt>
-      <wp:comment_status>open</wp:comment_status>
+    </item>"""
+
+    #  <description>%(description)s</description>
+
+
+    """<wp:comment_status>open</wp:comment_status>
       <wp:ping_status>open</wp:ping_status>
       <wp:post_name>%(post_name)s</wp:post_name>
       <wp:status>inherit</wp:status>
-      <wp:post_parent>%(post_parent)d</wp:post_parent>
       <wp:menu_order>0</wp:menu_order>
-      <wp:post_type>attachment</wp:post_type>
       <wp:post_password></wp:post_password>
-      <wp:attachment_url>%(url)s</wp:attachment_url>
       <wp:postmeta>
         <wp:meta_key>_wp_attached_file</wp:meta_key>
-        <wp:meta_value>%(filename)s</wp:meta_value>
-      </wp:postmeta>
-      <wp:postmeta>
-      <wp:meta_key>_wp_attachment_metadata</wp:meta_key>
-      <wp:meta_value>a:6:{s:5:"width";s:3:"%(width)d";s:6:"height";s:3:"%(height)d";s:14:"hwstring_small";s:22:"height='96' width='76'";s:4:"file";s:7:"6jg.jpg";s:5:"sizes";a:2:{s:9:"thumbnail";a:3:{s:4:"file";s:15:"6jg-150x150.jpg";s:5:"width";s:3:"150";s:6:"height";s:3:"150";}s:6:"medium";a:3:{s:4:"file";s:15:"6jg-240x300.jpg";s:5:"width";s:3:"240";s:6:"height";s:3:"300";}}s:10:"image_meta";a:10:{s:8:"aperture";s:1:"0";s:6:"credit";s:0:"";s:6:"camera";s:0:"";s:7:"caption";s:0:"";s:17:"created_timestamp";s:1:"0";s:9:"copyright";s:0:"";s:12:"focal_length";s:1:"0";s:3:"iso";s:1:"0";s:13:"shutter_speed";s:1:"0";s:5:"title";s:0:"";}}</wp:meta_value>
+        <wp:meta_value>%(nicename)s</wp:meta_value>
       </wp:postmeta>
     </item>"""
+
+    """
+        a:6:{
+          s:5:"width";s:3:"%(width)d";
+          s:6:"height";s:3:"%(height)d";
+          s:14:"hwstring_small";s:22:"height='96' width='76'";
+          s:4:"file";s:7:"6jg.jpg";
+          s:5:"sizes";a:2:{
+            s:9:"thumbnail";
+            a:3:{
+              s:4:"file";s:15:"6jg-150x150.jpg";
+              s:5:"width";s:3:"150";
+              s:6:"height";s:3:"150";
+            }
+            s:6:"medium";
+            a:3:{
+              s:4:"file";s:15:"6jg-240x300.jpg";
+              s:5:"width";s:3:"240";
+              s:6:"height";s:3:"300";}
+          }
+          s:10:"image_meta";a:10:{
+            s:8:"aperture";s:1:"0";
+            s:6:"credit";s:0:"";
+            s:6:"camera";s:0:"";
+            s:7:"caption";s:0:"";
+            s:17:"created_timestamp";s:1:"0";
+            s:9:"copyright";s:0:"";
+            s:12:"focal_length";s:1:"0";
+            s:3:"iso";s:1:"0";
+            s:13:"shutter_speed";s:1:"0";
+            s:5:"title";s:0:"";
+          }
+        }
+     """
     
+
     for img in images:
         img['post_name'] = nicename(img['name'])
         img['pubdate'] = format_pubdate(img['date'])
@@ -88,7 +123,7 @@ def format_images(images, static_url):
         img['categories'] = format_post_categories(img['categories'])
         img['static_url'] = static_url
         img['description'] = ''
-    
+
     return u'\n'.join([format % img for img in images])
 
 
@@ -100,9 +135,7 @@ def format_items(items, site_url):
       <dc:creator><![CDATA[%(author)s]]></dc:creator>
 %(categories)s
       <guid isPermaLink="false">%(site_url)s/?p=%(post_id)d</guid>
-      <description>%(description)s</description>
       <content:encoded><![CDATA[%(text)s]]></content:encoded>
-      <excerpt:encoded><![CDATA[]]></excerpt:encoded>
       <wp:post_id>%(post_id)d</wp:post_id>
       <wp:post_date>%(post_date)s</wp:post_date>
       <wp:post_date_gmt>%(post_gmt_date)s</wp:post_date_gmt>
@@ -110,9 +143,17 @@ def format_items(items, site_url):
       <wp:ping_status>open</wp:ping_status>
       <wp:post_name>%(post_name)s</wp:post_name>
       <wp:status>publish</wp:status>
-      <wp:post_parent>0</wp:post_parent>
-      <wp:menu_order>0</wp:menu_order>
       <wp:post_type>post</wp:post_type>
+%(comments)s
+    </item>
+"""
+
+    """
+      <description>%(description)s</description>
+      <excerpt:encoded><![CDATA[]]></excerpt:encoded>
+
+  <wp:post_parent>0</wp:post_parent>
+      <wp:menu_order>0</wp:menu_order>
       <wp:post_password></wp:post_password>
       <wp:postmeta>
         <wp:meta_key>_edit_lock</wp:meta_key>
@@ -121,10 +162,10 @@ def format_items(items, site_url):
       <wp:postmeta>
         <wp:meta_key>_edit_last</wp:meta_key>
         <wp:meta_value>1</wp:meta_value>
-      </wp:postmeta>
-%(comments)s
-    </item>
-"""
+      </wp:postmeta>"""
+
+
+
     for item in items:
         item['pubdate'] = format_pubdate(item['date'])
         item['post_date'] = format_isodate(item['date'])
@@ -151,6 +192,7 @@ def nicename(s):
         u' ' : u'_',
         u'!' : u'',
         u'?' : u'',
+        u':' : u'',
         }
     x = ''.join([translatetable.get(c, c) for c in s])
     return x.lower()

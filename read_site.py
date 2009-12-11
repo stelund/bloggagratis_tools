@@ -10,25 +10,34 @@ import pprint
 import datetime
 import wp_export
 import pytz
+import Image
 from htmlentitydefs import name2codepoint
 
 SWEDEN_TIMEZONE = pytz.timezone('Europe/Stockholm')
 BLOG = u'tantalexandra'
-IMAGES_URL = 'http://stefanlundstrom.se/static/' + BLOG + '_images/'
 MONTHS = {u'jan':1,
+          u'januari':1,
           u'feb':2,
+          u'februari':2,
+          u'mar':3,
           u'mars':3,
+          u'apr':4,
           u'april':4,
           u'maj':5,
+          u'jun':6,
           u'juni':6,
           u'juli':7,
+          u'jul':7,
           u'aug':8,
+          u'augusti':8,
           u'sept':9,
+          u'september':9,
           u'okt':10,
+          u'oktober':10,
           u'nov':11,
           u'november':11,
-          u'december':12,
-          u'dec':12 }
+          u'dec':12,
+          u'december':12 }
 
 def read_date(datestr):
     day_str, time_str = datestr.replace(u'&nbsp;',u' ').lower().split(u' kl ') 
@@ -73,7 +82,7 @@ BLOG_RULES = {
 }
 
 def parse_page(url, rules):
-    page = get_page(url)
+    page = get_page(url).replace('</p>\n', '</p>')
 
     info = {}
     for part, regex in rules.iteritems():
@@ -188,13 +197,18 @@ def read_categories():
    
     return categories, pages
 
-def download_image(filename):
-                   
+def make_filename_safe(filename):
     safe_filename = filename.replace(u'/', u'_')
     if safe_filename.endswith('_'):
         safe_filename = safe_filename[:-1]
         if '.' not in safe_filename[-5:]:
             safe_filename = safe_filename + '.' + re.compile(r'\.(?P<extension>.+)_').search(safe_filename).group('extension')
+    return safe_filename
+
+def download_image(filename):
+                   
+    safe_filename = make_filename_safe(filename)
+
     if not os.path.exists(os.path.join(BLOG + u'_images', safe_filename)):
         try:
             url = urllib2.urlopen(u'http://data.bloggplatsen.se/bild/%s' % filename)
@@ -204,34 +218,47 @@ def download_image(filename):
         except urllib2.URLError:
             print 'Failed read read %s' % filename
             return None
+        if len(data) == 0:
+            print 'Failed to read %s' % filename
+            return None
         fp = file(os.path.join(BLOG + u'_images', safe_filename), u'wb')
         fp.write(data)
         fp.close()
-        
-    return safe_filename
+           
+    return os.path.join(BLOG + u'_images', safe_filename)
 
+def size_up_image(path):
+    try:
+        img = Image.open(path)
+    except IOError:
+        print path
+        raise
+    return img.size
+    
 def read_images(article):
     images = []
-    for filename in re.compile(u'http://data.bloggplatsen.se/bild/(?P<filnamn>.+?)"').findall(article['text']):
-        path = 'missing' #download_image(filename)
+    for filename in re.compile(u'http://data.bloggplatsen.se/bild/(?P<filename>.+?)"').findall(article['text']):
 
+        nicename = u'%s_%d.jpg' % (wp_export.nicename(article[u'title']), len(images)+1)
         images.append( {
                 u'filename' : filename,
-                u'url' : u'http://data.bloggplatsen.se/bild/%s?%s-bild_%d.jpg' % (filename, wp_export.nicename(article[u'title']), len(images)+1),
-                #IMAGES_URL + path,
-                u'path' : path,
+                u'nicename' : nicename,
+                u'url' :  u'http://data.bloggplatsen.se/bild/%s?%s' % (filename, nicename), 
                 u'date' : article[u'date'],
                 u'categories' : [],
-                u'height' : 0,
-                u'width' : 0,
                 u'name' : '%s - bild %d' % (article[u'title'], len(images) + 1),
                 } )
+
 
     for image in images:
         article['text'] = article['text'].replace('http://data.bloggplatsen.se/bild/%s' % image[u'filename'], 
                                                   image[u'url'])
+    #    print image[u'url'], image[u'height'], image[u'width']
 
     return images
+
+def minimize(article):
+    article['text'] = article['text'].replace(' class="space"', '').replace('<!-- -->', '').replace(' class="editor_p"', '')
 
 def main():
     if not os.path.exists(BLOG):
@@ -251,6 +278,7 @@ def main():
         print u'Processing %s' % permalink
         info['post_id'] = post_id
         post_id = post_id + 1
+        minimize(info)
         articles.append(info)
         post_images = read_images(info)
         for img in post_images:
@@ -258,6 +286,7 @@ def main():
             img['post_id'] = post_id
             post_id = post_id + 1
         images.extend(post_images)
+        
 
     bloginfo = {u'site_url':u'http://stefanlundstrom.se:5122', 'static_url' : 'http://data.bloggplatsen.se/bild/'}
     wp_export.export(articles, images, categories, bloginfo, u'out.xml')
