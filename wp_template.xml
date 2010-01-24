@@ -25,15 +25,15 @@
 >
 
   <channel>
-    <title>Test</title>
-    <link>http://stefanlundstrom.se:5122</link>
+    <title>%(name)s</title>
+    <link>%(site_url)s</link>
     <description></description>
     <pubDate>%(pubdate)s</pubDate>
     <generator>http://wordpress.org/?v=2.8.4</generator>
     <language>en</language>
     <wp:wxr_version>1.0</wp:wxr_version>
-    <wp:base_site_url>http://stefanlundstrom.se:5122</wp:base_site_url>
-    <wp:base_blog_url>http://stefanlundstrom.se:5122</wp:base_blog_url>
+    <wp:base_site_url>%(site_url)s</wp:base_site_url>
+    <wp:base_blog_url>%(site_url)s</wp:base_blog_url>
 
 %(categories)s
 %(items)s

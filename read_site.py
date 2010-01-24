@@ -6,15 +6,15 @@ import urllib2
 import sys
 import os
 import re
-import pprint
 import datetime
 import wp_export
 import pytz
-import Image
+import optparse
 from htmlentitydefs import name2codepoint
 
 SWEDEN_TIMEZONE = pytz.timezone('Europe/Stockholm')
-BLOG = u'tantalexandra'
+TEMPDIR = None
+BLOG = None
 MONTHS = {u'jan':1,
           u'januari':1,
           u'feb':2,
@@ -56,7 +56,7 @@ def read_date(datestr):
     return SWEDEN_TIMEZONE.localize(datetime.datetime(year=day.year, month=day.month, day=day.day, hour=int(hour), minute=int(minute)))
 
 def get_page(path):
-    filename = BLOG + u'/' + path.strip(u'/').replace(u'/', u'_') + u'.html'
+    filename = TEMPDIR + u'/' + path.strip(u'/').replace(u'/', u'_') + u'.html'
     if os.path.exists(filename):
         fp = file(filename, 'rb')
         data = fp.read()
@@ -78,11 +78,11 @@ BLOG_RULES = {
     u'text': (False, re.compile(r'<div class="inlagg_text">(?P<text>.*?)<a id="kommentarer"')),
     u'title': (False, re.compile(r'<h1><a href="http://.+bloggagratis\.se/.+?" title="(?P<title>.+?)"')),
     u'author,date': (False, re.compile(r'av <a href="http://.+bloggagratis\.se/presentation/">(?P<author>.+?)</a> (?P<date>.+?)\n')),
-    u'comments': (True, re.compile(r'<div class="kommentarer"><div style="margin:0;padding:0px 5px 0px 5px">\n<p>(?P<comments>.+?)</p>\n</div>\n<div style="text-align: right; margin: 0; padding: 0px 0px 0px 0px">av (?P<commentor_date>.+?)</div>'))
+    u'comments': (True, re.compile(r'<div class="kommentarer"><div style="margin:0;padding:0px 5px 0px 5px">\n<p>(?P<comments>.+?)</p></div>\n<div style="text-align: right; margin: 0; padding: 0px 0px 0px 0px">av (?P<commentor_date>.+?)</div>'))
 }
 
-def parse_page(url, rules):
-    page = get_page(url).replace('</p>\n', '</p>')
+def parse_page(page, rules):
+    page = get_page(page).replace(u'</p>\n', u'</p>')
 
     info = {}
     for part, regex in rules.iteritems():
@@ -96,13 +96,13 @@ def parse_page(url, rules):
                 else:
                     info[part] = match
         elif not regex[0]:
-            print 'Matching %s failed in page %s' % (part, url)
+            print 'Matching %s failed in page %s' % (part, page)
             print page
             sys.exit(1)
     return info
 
-def parse_blog_page(url):
-    info = parse_page(url, BLOG_RULES)
+def parse_blog_page(page):
+    info = parse_page(page, BLOG_RULES)
     if u'comments' in info:
         new_comments = []
         for comment_text, commentor in info['comments']:
@@ -116,7 +116,7 @@ def parse_blog_page(url):
                         u'date' : read_date(match.group('date')),
                         }
                 else:
-                    print 'Bad commentor %s in page %s' % (commentor, url)
+                    print 'Bad commentor %s in page %s' % (commentor, page)
                     comment = { 'text' : commentor }
             else:
                 if 'idag' in commentor or 'ig&aring;r' in commentor or 'f&ouml;rrg&aring;r' in commentor:
@@ -136,13 +136,18 @@ def parse_blog_page(url):
     else:
         info[u'comments'] = []
 
-    if u'author,date' in info:
-        info[u'date'] = read_date(info[u'author,date'][1])
-        info[u'author'] = unescape_html(info[u'author,date'][0])
-        del info[u'author,date']
+    info[u'date'] = read_date(info[u'author,date'][1])
+    info[u'author'] = unescape_html(info[u'author,date'][0])
+    del info[u'author,date']
 
-    if u'text' in info:
-        info[u'text'] = unescape_html(info[u'text'])
+    info[u'page'] = page
+    info[u'text'] = unescape_html(info[u'text'])
+
+    info[u'links'] = []
+    for page in re.compile(u'href="http://%s.bloggagratis.se/(?P<page>20.+?)"' % BLOG).findall(info[u'text']):
+        info[u'links'].append({ u'url' : u'http://%s.bloggagratis.se/%s' % (BLOG, page),
+                                u'page' : page })
+        
     if u'title' in info:
         info[u'title'] = unescape_html(info[u'title'])
 
@@ -164,8 +169,11 @@ def read_index():
                 break
             for permalink in permalinks.findall(m_page):
                 indexes.append(permalink)
-                
-    return indexes
+              
+
+    match = re.compile(u'<title>(?P<name>.+?)</title>').search(page)
+    name = match.group('name')
+    return indexes, name
 
 def unescape_html(html):
     "unescape HTML code refs; c.f. http://wiki.python.org/moin/EscapingHtml"
@@ -197,48 +205,9 @@ def read_categories():
    
     return categories, pages
 
-def make_filename_safe(filename):
-    safe_filename = filename.replace(u'/', u'_')
-    if safe_filename.endswith('_'):
-        safe_filename = safe_filename[:-1]
-        if '.' not in safe_filename[-5:]:
-            safe_filename = safe_filename + '.' + re.compile(r'\.(?P<extension>.+)_').search(safe_filename).group('extension')
-    return safe_filename
-
-def download_image(filename):
-                   
-    safe_filename = make_filename_safe(filename)
-
-    if not os.path.exists(os.path.join(BLOG + u'_images', safe_filename)):
-        try:
-            url = urllib2.urlopen(u'http://data.bloggplatsen.se/bild/%s' % filename)
-            data = url.read()
-            url.close()
-            print 'Downloaded %s' % filename
-        except urllib2.URLError:
-            print 'Failed read read %s' % filename
-            return None
-        if len(data) == 0:
-            print 'Failed to read %s' % filename
-            return None
-        fp = file(os.path.join(BLOG + u'_images', safe_filename), u'wb')
-        fp.write(data)
-        fp.close()
-           
-    return os.path.join(BLOG + u'_images', safe_filename)
-
-def size_up_image(path):
-    try:
-        img = Image.open(path)
-    except IOError:
-        print path
-        raise
-    return img.size
-    
 def read_images(article):
     images = []
     for filename in re.compile(u'http://data.bloggplatsen.se/bild/(?P<filename>.+?)"').findall(article['text']):
-
         nicename = u'%s_%d.jpg' % (wp_export.nicename(article[u'title']), len(images)+1)
         images.append( {
                 u'filename' : filename,
@@ -253,21 +222,51 @@ def read_images(article):
     for image in images:
         article['text'] = article['text'].replace('http://data.bloggplatsen.se/bild/%s' % image[u'filename'], 
                                                   image[u'url'])
-    #    print image[u'url'], image[u'height'], image[u'width']
 
     return images
 
 def minimize(article):
-    article['text'] = article['text'].replace(' class="space"', '').replace('<!-- -->', '').replace(' class="editor_p"', '')
+    article['text'] = article['text'].replace(' class="space"', '').replace('<!-- -->', '').replace(' class="editor_p"', '').replace('<p></p>', '')
 
 def main():
-    if not os.path.exists(BLOG):
-        os.mkdir(BLOG)
+    global BLOG
+    global TEMPDIR
+    usage = 'usage: read_blog.py <blog> <new-url>\n\n<blog>Where blog is http://<blog>.bloggagratis.se \n and new-url is the full new url to where the site should be importet to.'
+    parser = optparse.OptionParser()
+    parser.add_option('-c', "--no-comments", help="Dont include comments", default=False, action="store_true", dest="nocomments")
+    parser.add_option('-t', "--temporary-directory", help="Default is <blog>", default=None, dest="tempdir")
+    parser.add_option('-s', "--scratch", help="Wipe temporary directory and download everything from blog", default=False, action="store_true", dest="scratch")
+    parser.add_option('-o', "--output", help="Export blog to wordprocess file", default='wordpress.xml', dest="output")
 
-    if not os.path.exists(BLOG + u'_images'):
-        os.mkdir(BLOG + u'_images')
-     
-    indexes = read_index()
+    (options, args) = parser.parse_args()
+
+    if len(args) != 2:
+        print usage
+        sys.exit(1)
+
+    BLOG = args[0]
+    site_url = args[1]
+    if options.tempdir:
+        TEMPDIR = options.tempdir
+    else:
+        TEMPDIR = BLOG
+
+    print 'Imorting from http://%s.bloggagratis.se/' % BLOG
+    print 'Temporary directory in %s' % TEMPDIR
+
+    if not os.path.exists(TEMPDIR):
+        os.mkdir(TEMPDIR)
+
+    if options.scratch:
+        print 'Reading site from scratch'
+        for page in os.listdir(TEMPDIR):
+            os.remove(os.path.join(TEMPDIR, page))
+    else:
+        pages = len([x for x in os.listdir(TEMPDIR)])
+        if pages:
+            print 'Using %d pages from cache' % pages
+
+    indexes, name = read_index()
     articles = []
     images = []
     post_id = 0
@@ -275,7 +274,7 @@ def main():
     for permalink in indexes:
         info = parse_blog_page(permalink)
         info[u'categories'] = category_lookup.get(permalink, [])
-        print u'Processing %s' % permalink
+        print u'- Reading %s' % permalink
         info['post_id'] = post_id
         post_id = post_id + 1
         minimize(info)
@@ -287,9 +286,10 @@ def main():
             post_id = post_id + 1
         images.extend(post_images)
         
-
-    bloginfo = {u'site_url':u'http://stefanlundstrom.se:5122', 'static_url' : 'http://data.bloggplatsen.se/bild/'}
-    wp_export.export(articles, images, categories, bloginfo, u'out.xml')
+    bloginfo = {u'site_url':unicode(site_url), 
+                u'static_url' : u'http://data.bloggplatsen.se/bild/',
+                u'name' : name}
+    wp_export.export(articles, images, categories, bloginfo, unicode(options.output))
 
 
 if __name__ == '__main__':
