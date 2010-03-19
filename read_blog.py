@@ -250,8 +250,8 @@ def minimize(article):
 def main():
     global BLOG
     global TEMPDIR
-    usage = 'usage: read_blog.py <blog> <new-url>\n\n<blog>Where blog is http://<blog>.bloggagratis.se \n and new-url is the full new url to where the site should be importet to.'
-    parser = optparse.OptionParser()
+    usage = 'usage: read_blog.py <blog> <new-url>\n\n<blog>Where blog is http://<blog>.bloggagratis.se \n and new-url is the full new url to where the site should be importet to.\n\nFor more help use --help.'
+    parser = optparse.OptionParser(usage='read_blog.py <blog> <new-url>')
     parser.add_option('-c', "--no-comments", help="Dont include comments", default=False, action="store_true", dest="nocomments")
     parser.add_option('-t', "--temporary-directory", help="Default is <blog>", default=None, dest="tempdir")
     parser.add_option('-s', "--scratch", help="Wipe temporary directory and download everything from blog", default=False, action="store_true", dest="scratch")
