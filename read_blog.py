@@ -40,6 +40,25 @@ MONTHS = {u'jan':1,
           u'december':12 }
 
 def read_date(datestr):
+    # new format
+    if 'kl' not in datestr:
+        # Torsdag 18 mars 18:37
+        match = re.compile(u'.* (?P<day>\\d+) (?P<month>.+?) (?P<year>\\d\\d\\d\\d) (?P<hour>\\d\\d):(?P<minute>\\d\\d)').search(datestr)
+        if match:
+            year = int(match.group('year'))
+        else:
+            match = re.compile(u'.* (?P<day>\\d+) (?P<month>.+?) (?P<hour>\\d\\d):(?P<minute>\\d\\d)').search(datestr)
+            year = datetime.datetime.now().year
+            if not match:
+                print 'Failed to match date str "%s"' % datestr
+                return None
+        minute = int(match.group('minute'))
+        hour = int(match.group('hour'))
+        day = int(match.group('day'))
+        month = MONTHS[match.group('month').lower()]
+        return SWEDEN_TIMEZONE.localize(datetime.datetime(year=year, month=month, day=day, hour=hour, minute=minute))
+
+    # old format
     day_str, time_str = datestr.replace(u'&nbsp;',u' ').lower().split(u' kl ') 
 
     if u'idag' in day_str:
@@ -77,12 +96,12 @@ def get_page(path):
 BLOG_RULES = {
     u'text': (False, re.compile(r'<div class="inlagg_text">(?P<text>.*?)<a id="kommentarer"')),
     u'title': (False, re.compile(r'<h1><a href="http://.+bloggagratis\.se/.+?" title="(?P<title>.+?)"')),
-    u'author,date': (False, re.compile(r'av <a href="http://.+bloggagratis\.se/presentation/">(?P<author>.+?)</a> (?P<date>.+?)\n')),
+    u'author,date': (False, re.compile(r'[Aa]v <a href="http://.+bloggagratis\.se/presentation/">(?P<author>.+?)</a> (?P<date>.+?)\n')),
     u'comments': (True, re.compile(r'<div class="kommentarer"><div style="margin:0;padding:0px 5px 0px 5px">\n<p>(?P<comments>.+?)</p></div>\n<div style="text-align: right; margin: 0; padding: 0px 0px 0px 0px">av (?P<commentor_date>.+?)</div>'))
 }
 
-def parse_page(page, rules):
-    page = get_page(page).replace(u'</p>\n', u'</p>')
+def parse_page(pagename, rules):
+    page = get_page(pagename).replace(u'</p>\n', u'</p>')
 
     info = {}
     for part, regex in rules.iteritems():
@@ -96,8 +115,8 @@ def parse_page(page, rules):
                 else:
                     info[part] = match
         elif not regex[0]:
-            print 'Matching %s failed in page %s' % (part, page)
-            print page
+            print u'Matching %s failed in page from page %s' % (part, pagename)
+            print repr(page)
             sys.exit(1)
     return info
 
@@ -116,7 +135,7 @@ def parse_blog_page(page):
                         u'date' : read_date(match.group('date')),
                         }
                 else:
-                    print 'Bad commentor %s in page %s' % (commentor, page)
+                    print u'Bad commentor %s in page %s' % (commentor, page)
                     comment = { 'text' : commentor }
             else:
                 if 'idag' in commentor or 'ig&aring;r' in commentor or 'f&ouml;rrg&aring;r' in commentor:
