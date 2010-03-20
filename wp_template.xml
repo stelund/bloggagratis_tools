@@ -37,6 +37,5 @@
 
 %(categories)s
 %(items)s
-%(images)s
 </channel>
 </rss>

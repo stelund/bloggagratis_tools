@@ -208,7 +208,7 @@ def read_categories():
 
     pages = {}
     categories = []
-    for (cat_view, cat_html) in re.compile(u'bloggagratis.se/(?P<url>.+?)">(?P<category>.+?)</a>').findall(categories_section):
+    for (cat_view, cat_html) in re.compile(u'bloggagratis.se/(?P<url>.+?)">(?P<category>.+?) \\(\\d+\\)</a>').findall(categories_section):
         cat = unescape_html(cat_html)
         for index in range(200):
             c_page = get_page(cat_view + u'sida-%d/' % (index+1))
@@ -247,15 +247,32 @@ def read_images(article):
 def minimize(article):
     article['text'] = article['text'].replace(' class="space"', '').replace('<!-- -->', '').replace(' class="editor_p"', '').replace('<p></p>', '')
 
+def fix_links(articles, site_url):
+
+    for article in articles:
+        article['new_permalink'] = '%s/?p=%d' % (site_url, article['post_id'])
+
+    for article in articles:
+        for link in article[u'links']:
+            for linkto in articles:
+                if linkto['page'] == link['page']:
+                    article[u'text'] = article[u'text'].replace(link['url'], linkto['new_permalink'])
+                    print u'Fixing link %s to %s' % (link[u'page'], linkto['new_permalink'])
+                    break
+            else:
+                print u'Missing link for %s to %s' % (article['page'], link['page'])
+
+
 def main():
     global BLOG
     global TEMPDIR
     usage = 'usage: read_blog.py <blog> <new-url>\n\n<blog>Where blog is http://<blog>.bloggagratis.se \n and new-url is the full new url to where the site should be importet to.\n\nFor more help use --help.'
     parser = optparse.OptionParser(usage='read_blog.py <blog> <new-url>')
-    parser.add_option('-c', "--no-comments", help="Dont include comments", default=False, action="store_true", dest="nocomments")
-    parser.add_option('-t', "--temporary-directory", help="Default is <blog>", default=None, dest="tempdir")
-    parser.add_option('-s', "--scratch", help="Wipe temporary directory and download everything from blog", default=False, action="store_true", dest="scratch")
-    parser.add_option('-o', "--output", help="Export blog to wordprocess file", default='wordpress.xml', dest="output")
+    parser.add_option('-c', '--no-comments', help='Dont include comments', default=False, action='store_true', dest='nocomments')
+    parser.add_option('-t', '--temporary-directory', help='Default is <blog>', default=None, dest='tempdir')
+    parser.add_option('-s', '--scratch', help='Wipe temporary directory and download everything from blog', default=False, action='store_true', dest='scratch')
+    parser.add_option('-o', '--output', help='Export blog to wordprocess file', default='wordpress.xml', dest='output')
+    parser.add_option('-n', '--limit', help='Split output into n articles per exported file', default=0, dest='limit')
 
     (options, args) = parser.parse_args()
 
@@ -285,11 +302,11 @@ def main():
         if pages:
             print 'Using %d pages from cache' % pages
 
-    indexes, name = read_index()
-    articles = []
-    images = []
     post_id = 0
     categories, category_lookup = read_categories()
+    
+    indexes, name = read_index()
+    articles = []
     for permalink in indexes:
         info = parse_blog_page(permalink)
         info[u'categories'] = category_lookup.get(permalink, [])
@@ -297,19 +314,31 @@ def main():
         info['post_id'] = post_id
         post_id = post_id + 1
         minimize(info)
-        articles.append(info)
         post_images = read_images(info)
         for img in post_images:
             img['post_parent'] = info['post_id']
             img['post_id'] = post_id
             post_id = post_id + 1
-        images.extend(post_images)
+        info['images'] = post_images
+        articles.append(info)
         
+    fix_links(articles, unicode(site_url))
+
     bloginfo = {u'site_url':unicode(site_url), 
                 u'static_url' : u'http://data.bloggplatsen.se/bild/',
                 u'name' : name}
-    wp_export.export(articles, images, categories, bloginfo, unicode(options.output))
 
+    if options.limit:
+        for index, start in enumerate(range(0, len(articles), int(options.limit))):
+            if u'.' in unicode(options.output):
+                basename, ext = unicode(options.output).rsplit(u'.', 1)
+                filename = u'%s_%d.%s' % (basename, index, ext)
+            else:
+                filename = u'%s_%d' % (unicode(options.output), index)
+            print u'Exporting %d-%d to %s' % (start, start+int(options.limit), filename)
+            wp_export.export(articles[start:start+int(options.limit)], categories, bloginfo, filename)
+    else:
+        wp_export.export(articles, categories, bloginfo, unicode(options.output))
 
 if __name__ == '__main__':
     main()                 

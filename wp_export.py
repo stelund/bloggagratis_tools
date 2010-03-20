@@ -42,11 +42,6 @@ def format_comments(comments):
         c['comment_id'] = ''
     return u'\n'.join([format % comment for comment in comments])
 
-def format_item_categories(categories):
-    # <category><![CDATA[Bilder]]></category>
-    # <category domain="category" nicename="bilder"><![CDATA[Bilder]]></category>
-    return ''
-
 def format_images(images, static_url):
     format = u"""    <item>
       <title>%(name)s</title>
@@ -75,7 +70,7 @@ def format_images(images, static_url):
     return u'\n'.join([format % img for img in images])
 
 
-def format_items(items, site_url):
+def format_items(items, site_url, static_url):
     format = u"""    <item>
       <title>%(title)s</title>
       <link>%(site_url)s/%(year)d/%(month)d/%(day)d/%(post_name)s/</link>
@@ -97,6 +92,7 @@ def format_items(items, site_url):
       <wp:post_type>post</wp:post_type>
 %(comments)s
     </item>
+%(images)s
 """
 
     """
@@ -114,19 +110,6 @@ def format_items(items, site_url):
       </wp:postmeta>"""
 
     for item in items:
-        item['new_permalink'] = '%s/?p=%d' % (site_url, item['post_id'])
-
-    for item in items:
-        for link in item[u'links']:
-            for linkto in items:
-                if linkto['page'] == link['page']:
-                    item[u'text'] = item[u'text'].replace(link['url'], linkto['new_permalink'])
-                    print u'Fixing link %s to %s' % (link[u'page'], linkto['new_permalink'])
-                    break
-            else:
-                print u'Missing link for %s to %s' % (item['page'], link['page'])
-
-    for item in items:
         item['pubdate'] = format_pubdate(item['date'])
         item['post_date'] = format_isodate(item['date'])
         item['post_gmt_date'] = format_gmtdate(item['date'])
@@ -139,6 +122,7 @@ def format_items(items, site_url):
         item['day'] = item['date'].day
         item['description'] = ''
         item['text'] = item['text'].replace(u'</p>', u'</p>\n')
+        item['images'] = format_images(item['images'], static_url)
 
     return u'\n'.join([format % item for item in items])
 
@@ -176,7 +160,7 @@ def format_categories(categories):
     return u'\n'.join([format % cat for cat in cat_dicts])
         
 
-def export(articles, images, categories, bloginfo, outfile):
+def export(articles, categories, bloginfo, outfile):
    fp = file(u'wp_template.xml', 'r')
    template = unicode(fp.read())
    fp.close()
@@ -184,8 +168,7 @@ def export(articles, images, categories, bloginfo, outfile):
    bloginfo['pubdate'] = format_pubdate(UTC_TIMEZONE.localize(datetime.datetime.utcnow()))
    bloginfo['creation_date'] = time.strftime('%Y-%m-%d %H:%M')
    bloginfo['categories'] = format_categories(categories)
-   bloginfo['items'] = format_items(articles, bloginfo['site_url'])
-   bloginfo['images'] = format_images(images, bloginfo['static_url'])
+   bloginfo['items'] = format_items(articles, bloginfo['site_url'], bloginfo['static_url'])
    out = template % bloginfo
 
    if outfile:
