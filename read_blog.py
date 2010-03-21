@@ -43,7 +43,8 @@ def read_date(datestr):
     # new format
     if 'kl' not in datestr:
         # Torsdag 18 mars 18:37
-        match = re.compile(u'.* (?P<day>\\d+) (?P<month>.+?) (?P<year>\\d\\d\\d\\d) (?P<hour>\\d\\d):(?P<minute>\\d\\d)').search(datestr)
+        # or 3 augusti 2008 22:49
+        match = re.compile(u'.*?(?P<day>\\d+) (?P<month>.+?) (?P<year>\\d\\d\\d\\d) (?P<hour>\\d\\d):(?P<minute>\\d\\d)').search(datestr)
         if match:
             year = int(match.group('year'))
         else:
@@ -55,6 +56,7 @@ def read_date(datestr):
         minute = int(match.group('minute'))
         hour = int(match.group('hour'))
         day = int(match.group('day'))
+        
         month = MONTHS[match.group('month').lower()]
         return SWEDEN_TIMEZONE.localize(datetime.datetime(year=year, month=month, day=day, hour=hour, minute=minute))
 
@@ -97,7 +99,7 @@ BLOG_RULES = {
     u'text': (False, re.compile(r'<div class="inlagg_text">(?P<text>.*?)<a id="kommentarer"')),
     u'title': (False, re.compile(r'<h1><a href="http://.+bloggagratis\.se/.+?" title="(?P<title>.+?)"')),
     u'author,date': (False, re.compile(r'[Aa]v <a href="http://.+bloggagratis\.se/presentation/">(?P<author>.+?)</a> (?P<date>.+?)\n')),
-    u'comments': (True, re.compile(r'<div class="kommentarer"><div style="margin:0;padding:0px 5px 0px 5px">\n<p>(?P<comments>.+?)</p></div>\n<div style="text-align: right; margin: 0; padding: 0px 0px 0px 0px">av (?P<commentor_date>.+?)</div>'))
+    u'comments' : (True, re.compile(r'<div class="kommentarer">\n.*\n.*<p.+?>(?P<date>.+?)</p>.*<p.+?>Skrivet av: (?P<commentor>.+?)</p>.*\n.*\n.*<p.*?>(?P<comment>.*?)</p>')),
 }
 
 def parse_page(pagename, rules):
@@ -124,32 +126,27 @@ def parse_blog_page(page):
     info = parse_page(page, BLOG_RULES)
     if u'comments' in info:
         new_comments = []
-        for comment_text, commentor in info['comments']:
+        for comment_date, commentor, comment_text in info['comments']:
             if u'<a' in commentor:
-                match = re.compile(u'<a href="(?P<url>.+?)" title=".*?" target="_blank">(?P<author>.+?)</a> (?P<date>.+)').search(commentor)
+                match = re.compile(u'<a href="(?P<url>.+?)" title=".*?" target="_blank">(?P<author>.+?)</a>').search(commentor)
                 if match:
                     comment = {
                         u'text' : unicode(unescape_html(comment_text)),
                         u'url' : match.group('url'),
                         u'author' : match.group('author'),
-                        u'date' : read_date(match.group('date')),
+                        u'date' : read_date(comment_date),
                         }
                 else:
                     print u'Bad commentor %s in page %s' % (commentor, page)
                     comment = { 'text' : commentor }
             else:
-                if 'idag' in commentor or 'ig&aring;r' in commentor or 'f&ouml;rrg&aring;r' in commentor:
-                    author, d1, d2, d3 = commentor.rsplit(' ',3)
-                    date = '%s %s %s' % (d1, d2, d3)
-                else:
-                    author, d1, d2, d3, d4, d5 = commentor.rsplit(' ',5)
-                    date = '%s %s %s %s %s' % (d1, d2, d3, d4, d5)
                 comment = {
-                    u'text' : comment_text,
-                    u'author' : author,
-                    u'date' : read_date(date),
+                    u'text' : unicode(unescape_html(comment_text)),
                     u'url' : '',
+                    u'author' : commentor,
+                    u'date' : read_date(comment_date),
                     }
+            comment['comment_id'] = len(new_comments) + 1
             new_comments.append(comment)
         info[u'comments'] = new_comments
     else:
@@ -212,6 +209,7 @@ def read_categories():
         cat = unescape_html(cat_html)
         for index in range(200):
             c_page = get_page(cat_view + u'sida-%d/' % (index+1))
+            print 'Reading category links from %s' % cat_view + u'sida-%d/' % (index+1)
             if not permalinks.search(c_page):
                 break
             for permalink in permalinks.findall(c_page):
@@ -221,7 +219,7 @@ def read_categories():
                     pages[permalink] = [cat]
                 
         categories.append(cat)
-   
+
     return categories, pages
 
 def read_images(article):
@@ -272,7 +270,7 @@ def main():
     parser.add_option('-t', '--temporary-directory', help='Default is <blog>', default=None, dest='tempdir')
     parser.add_option('-s', '--scratch', help='Wipe temporary directory and download everything from blog', default=False, action='store_true', dest='scratch')
     parser.add_option('-o', '--output', help='Export blog to wordprocess file', default='wordpress.xml', dest='output')
-    parser.add_option('-n', '--limit', help='Split output into n articles per exported file', default=0, dest='limit')
+    parser.add_option('-n', '--limit', help='Limit output to n articles per exported file', default=0, dest='limit')
 
     (options, args) = parser.parse_args()
 
@@ -310,7 +308,7 @@ def main():
     for permalink in indexes:
         info = parse_blog_page(permalink)
         info[u'categories'] = category_lookup.get(permalink, [])
-        print u'- Reading %s' % permalink
+        print u'Reading %s - Found in %d Categories with %d Comments' % (permalink, len(info['categories']), len(info['comments']))
         info['post_id'] = post_id
         post_id = post_id + 1
         minimize(info)
@@ -329,17 +327,24 @@ def main():
                 u'name' : name}
 
     if options.limit:
+        basename, ext = unicode(options.output).rsplit(u'.', 1)
         for index, start in enumerate(range(0, len(articles), int(options.limit))):
             if u'.' in unicode(options.output):
-                basename, ext = unicode(options.output).rsplit(u'.', 1)
-                filename = u'%s_%d.%s' % (basename, index, ext)
+                filename = u'%s_%d.%s' % (basename, index+1, ext)
             else:
-                filename = u'%s_%d' % (unicode(options.output), index)
+                filename = u'%s_%d' % (unicode(options.output), index+1)
             print u'Exporting %d-%d to %s' % (start, start+int(options.limit), filename)
             wp_export.export(articles[start:start+int(options.limit)], categories, bloginfo, filename)
-    else:
-        wp_export.export(articles, categories, bloginfo, unicode(options.output))
+            categories = [] # only export categories once
 
+        print 'IMPORTANT - Start to import from %s_1.%s where the categories are' % (basename, ext)
+    else:
+        print u'Exporting 0-%d to %s' % (len(articles), unicode(options.output))
+        wp_export.export(articles, categories, bloginfo, unicode(options.output))
+    
+    print 'Done.'
+
+        
 if __name__ == '__main__':
     main()                 
 

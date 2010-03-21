@@ -19,7 +19,7 @@ def format_gmtdate(date):
 
 def format_comments(comments):
     format = u"""      <wp:comment>
-        <wp:comment_id>%(comment_id)s</wp:comment_id>
+        <wp:comment_id>%(comment_id)d</wp:comment_id>
         <wp:comment_author><![CDATA[%(author)s]]></wp:comment_author>
         <wp:comment_author_email>%(author_email)s</wp:comment_author_email>
         <wp:comment_author_url>%(url)s</wp:comment_author_url>
@@ -31,15 +31,14 @@ def format_comments(comments):
         <wp:comment_type></wp:comment_type>
         <wp:comment_parent>0</wp:comment_parent>
         <wp:comment_user_id>%(user_id)d</wp:comment_user_id>
-      </wp:comment>
-"""
+      </wp:comment>"""
 
     for c in comments:
         c['gmt_date'] = format_gmtdate(c['date'])
         c['date'] = format_isodate(c['date'])
         c['user_id'] = 0
         c['author_email'] = ''
-        c['comment_id'] = ''
+
     return u'\n'.join([format % comment for comment in comments])
 
 def format_images(images, static_url):

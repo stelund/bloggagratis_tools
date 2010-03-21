@@ -1,0 +1,54 @@
+
+Bloggagratis Verktyg
+====================
+Blogga gratis verktyg är ett litet program för att läsa bloggar från bloggagratis.se. Verktygen ska
+användas för att göra backup eller flytta sin blog till en annan platform. Nu stöds endast wordpress
+export format. Programmet laddar hem och läser bloggen.
+
+English Description
+===================
+Bloggagratis.se is a Swedish blogging platform. This is a toolkit for creating backups and exporting
+the blog content.
+
+Uppdateringar
+=============
+Bloggagratis websida uppdateras hela tiden och programmet lyckas därför inte hitta alla delarna. Men
+kontakta mig gärna så ska jag laga vad som kan tänkas vara trasigt.
+
+Senaste uppdateringen gjordes 2010-03-20.
+
+Användning
+==========
+För att köra programmet krävs python 2.5.* eller python 2.6.*. http://www.python.org/download/
+Testat med wordpress 2.8.4.
+
+$ python read_blog.py --help
+Usage: read_blog.py <blog> <new-url>
+
+Options:
+  -h, --help            show this help message and exit
+  -c, --no-comments     Dont include comments
+  -t TEMPDIR, --temporary-directory=TEMPDIR
+                        Default is <blog>
+  -s, --scratch         Wipe temporary directory and download everything from
+                        blog
+  -o OUTPUT, --output=OUTPUT
+                        Export blog to wordprocess file
+  -n LIMIT, --limit=LIMIT
+                        Limit output to n articles per exported file
+
+Mac OSX
+=======
+Import av bilder för wordpress fungerar inte så bra på OS X. Checken för att se om
+hela filen blir nedladdad misslyckas lite random. Därför föreslår jag att
+editera wp-admin/import/wordpress.php och kommentera bort raderna:
+
+                elseif ( isset($headers['content-length']) && filesize($upload['file']) != $headers['content-l
+ength'] ) {
+                      @unlink($upload['file']);
+                      return new WP_Error( 'import_file_error', __('Remote file is incorrect size') );
+                }
+
+med hjälp av // i början av varje rad.
+ 
+
