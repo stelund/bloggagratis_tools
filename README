@@ -1,9 +1,8 @@
-
 Bloggagratis Verktyg
 ====================
-Blogga gratis verktyg är ett litet program för att läsa bloggar från bloggagratis.se. Verktygen ska
-användas för att göra backup eller flytta sin blog till en annan platform. Nu stöds endast wordpress
-export format. Programmet laddar hem och läser bloggen.
+Blogga gratis verktyg Ã¤r ett litet program fÃ¶r att lÃ¤sa bloggar frÃ¥n bloggagratis.se. Verktygen ska
+anvï¿½ndas fï¿½r att gï¿½ra backup eller flytta sin blog till en annan platform. Nu stï¿½ds endast wordpress
+export format. Programmet laddar hem och lï¿½ser bloggen.
 
 English Description
 ===================
@@ -12,14 +11,14 @@ the blog content.
 
 Uppdateringar
 =============
-Bloggagratis websida uppdateras hela tiden och programmet lyckas därför inte hitta alla delarna. Men
-kontakta mig gärna så ska jag laga vad som kan tänkas vara trasigt.
+Bloggagratis websida uppdateras hela tiden och programmet lyckas dï¿½rfï¿½r inte hitta alla delarna. Men
+kontakta mig gï¿½rna sï¿½ ska jag laga vad som kan tï¿½nkas vara trasigt.
 
 Senaste uppdateringen gjordes 2010-03-20.
 
-Användning
+Anvï¿½ndning
 ==========
-För att köra programmet krävs python 2.5.* eller python 2.6.*. http://www.python.org/download/
+Fï¿½r att kï¿½ra programmet krï¿½vs python 2.5.* eller python 2.6.*. http://www.python.org/download/
 Testat med wordpress 2.8.4.
 
 $ python read_blog.py --help
@@ -39,8 +38,8 @@ Options:
 
 Mac OSX
 =======
-Import av bilder för wordpress fungerar inte så bra på OS X. Checken för att se om
-hela filen blir nedladdad misslyckas lite random. Därför föreslår jag att
+Import av bilder fï¿½r wordpress fungerar inte sï¿½ bra pï¿½ OS X. Checken fï¿½r att se om
+hela filen blir nedladdad misslyckas lite random. Dï¿½rfï¿½r fï¿½reslï¿½r jag att
 editera wp-admin/import/wordpress.php och kommentera bort raderna:
 
                 elseif ( isset($headers['content-length']) && filesize($upload['file']) != $headers['content-l
@@ -49,6 +48,6 @@ ength'] ) {
                       return new WP_Error( 'import_file_error', __('Remote file is incorrect size') );
                 }
 
-med hjälp av // i början av varje rad.
+med hjï¿½lp av // i bï¿½rjan av varje rad.
  
 
